@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smartsupport-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+    volumes:
+      # Mount source code for hot reload (exclude node_modules)
+      - .:/app
+      # Anonymous volume to prevent local node_modules from overriding container's
+      - /app/node_modules
+      # Mount .next for faster rebuilds (optional, can improve performance)
+      - ./.next:/app/.next
+    command: npm run dev
+    restart: unless-stopped
+    networks:
+      - smartsupport-network
+
+networks:
+  smartsupport-network:
+    driver: bridge
+
