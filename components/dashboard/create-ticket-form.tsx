@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ticketsApi } from "@/lib/api/tickets";
+import { ticketsApi, pollTicketStatus } from "@/lib/api/tickets";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/language-context";
 import { translations } from "@/lib/translations";
@@ -34,20 +34,61 @@ export function CreateTicketForm({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
+  const [isPolling, setIsPolling] = useState(false);
 
   const createTicketMutation = useMutation({
-    mutationFn: (data: TicketInput) => ticketsApi.createTicket(data),
-    onSuccess: (data) => {
+    mutationFn: async (data: TicketInput) => {
+      // Create the ticket and get task_id
+      const response = await ticketsApi.createTicket(data);
+      
+      // Show initial toast
       toast({
         title: t.toast.ticketCreated,
-        description: `Task ID: ${data.task_id}`,
+        description: "Ticket created, AI is processing...",
       });
-      setText("");
-      onOpenChange(false);
-      // Poll for task status
-      pollTaskStatus(data.task_id);
+
+      // Start polling for the result
+      setIsPolling(true);
+      try {
+        const result = await pollTicketStatus(response.task_id, {
+          interval: 2000, // Poll every 2 seconds
+          maxAttempts: 15, // Timeout after 15 attempts (30 seconds)
+        });
+
+        // Polling completed successfully
+        setIsPolling(false);
+        toast({
+          title: t.toast.taskCompleted,
+          description: "Classification completed successfully",
+        });
+
+        // Trigger a refetch of all relevant queries
+        queryClient.invalidateQueries({ queryKey: ["tickets"] });
+        queryClient.invalidateQueries({ queryKey: ["ticket-history"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+
+        // Call onResult callback if provided
+        if (onResult) {
+          onResult(result);
+        }
+
+        // Clear form and close dialog
+        setText("");
+        onOpenChange(false);
+
+        return response;
+      } catch (error: any) {
+        setIsPolling(false);
+        toast({
+          title: t.toast.taskError,
+          description: error.message || "Task failed or timed out",
+          variant: "destructive",
+        });
+        throw error;
+      }
     },
     onError: (error: any) => {
+      setIsPolling(false);
       toast({
         title: t.toast.ticketError,
         description: error.response?.data?.detail || error.message,
@@ -55,59 +96,6 @@ export function CreateTicketForm({
       });
     },
   });
-
-  const pollTaskStatus = async (taskId: string) => {
-    const maxAttempts = 60; // Poll for up to 60 seconds
-    let attempts = 0;
-
-    const poll = async () => {
-      try {
-        const status = await ticketsApi.getTicketStatus(taskId);
-        
-        if (status.status === "SUCCESS" && status.result) {
-          toast({
-            title: t.toast.taskCompleted,
-            description: "Classification completed successfully",
-          });
-          // Trigger a refetch of all relevant queries
-          queryClient.invalidateQueries({ queryKey: ["tickets"] });
-          queryClient.invalidateQueries({ queryKey: ["ticket-history"] });
-          queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-          // Call onResult callback if provided
-          if (onResult && status.result) {
-            onResult(status.result);
-          }
-          return;
-        }
-
-        if (status.status === "FAILURE") {
-          toast({
-            title: t.toast.taskError,
-            description: status.error || "Task failed",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Continue polling if still pending/started
-        if (
-          (status.status === "PENDING" || status.status === "STARTED") &&
-          attempts < maxAttempts
-        ) {
-          attempts++;
-          setTimeout(poll, 1000); // Poll every second
-        }
-      } catch (error: any) {
-        toast({
-          title: t.toast.pollingError,
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    };
-
-    poll();
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +110,8 @@ export function CreateTicketForm({
 
     createTicketMutation.mutate({ text: text.trim() });
   };
+
+  const isLoading = createTicketMutation.isPending || isPolling;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -146,24 +136,30 @@ export function CreateTicketForm({
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={6}
-              disabled={createTicketMutation.isPending}
+              disabled={isLoading}
               required
             />
           </div>
+          {isPolling && (
+            <div className="text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>AI is processing your ticket...</span>
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={createTicketMutation.isPending}
+              disabled={isLoading}
             >
               {t.dashboard.createTicket.form.cancel}
             </Button>
-            <Button type="submit" disabled={createTicketMutation.isPending}>
-              {createTicketMutation.isPending ? (
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
+                  {isPolling ? "Processing..." : "Submitting..."}
                 </>
               ) : (
                 t.dashboard.createTicket.form.submit
