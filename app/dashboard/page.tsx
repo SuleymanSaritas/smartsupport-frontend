@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, TrendingUp, Zap, Loader2 } from "lucide-react";
+import { FileText, Zap, Loader2 } from "lucide-react";
 import { CreateTicketForm } from "@/components/dashboard/create-ticket-form";
 import { MLResultsDialog } from "@/components/dashboard/ml-results-dialog";
 import { TicketHistoryList } from "@/components/dashboard/ticket-history-list";
@@ -72,7 +72,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card className="bg-white shadow-md border-t-4 border-secondary">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -90,33 +90,6 @@ export default function DashboardPage() {
                 <div className="text-2xl font-bold">{stats?.total_tickets ?? 0}</div>
                 <p className="text-xs text-muted-foreground">
                   {t.dashboard.stats.processedTickets}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white shadow-md border-t-4 border-secondary">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t.dashboard.stats.successRate}
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {statsLoading ? (
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            ) : statsError ? (
-              <div className="text-2xl font-bold text-destructive">Error</div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {stats?.success_rate !== undefined
-                    ? `${(stats.success_rate * 100).toFixed(1)}%`
-                    : "-"}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t.dashboard.stats.classificationAccuracy}
                 </p>
               </>
             )}
