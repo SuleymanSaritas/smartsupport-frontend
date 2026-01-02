@@ -52,7 +52,7 @@ export function CreateTicketForm({
       try {
         const result = await pollTicketStatus(response.task_id, {
           interval: 2000, // Poll every 2 seconds
-          maxAttempts: 15, // Timeout after 15 attempts (30 seconds)
+          // maxAttempts defaults to 60 (120 seconds) to handle Cloud Run cold starts
         });
 
         // Polling completed successfully

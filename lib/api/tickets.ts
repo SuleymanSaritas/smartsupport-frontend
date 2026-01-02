@@ -44,17 +44,28 @@ export async function pollTicketStatus(
   taskId: string,
   options: {
     interval?: number; // Polling interval in milliseconds (default: 2000)
-    maxAttempts?: number; // Maximum number of polling attempts (default: 15)
+    maxAttempts?: number; // Maximum number of polling attempts (default: 60)
   } = {}
 ): Promise<AnalysisResult> {
-  const { interval = 2000, maxAttempts = 15 } = options;
+  const { interval = 2000, maxAttempts = 60 } = options;
 
   return new Promise((resolve, reject) => {
     let attempts = 0;
 
     const poll = async () => {
+      attempts++;
+
+      // Check if we've exceeded max attempts before making API call
+      if (attempts > maxAttempts) {
+        reject(
+          new Error(
+            `Task polling timeout after ${maxAttempts} attempts (${(maxAttempts * interval) / 1000}s)`
+          )
+        );
+        return;
+      }
+
       try {
-        attempts++;
         const status = await ticketsApi.getTicketStatus(taskId);
 
         // Check if task is completed successfully
@@ -76,16 +87,6 @@ export async function pollTicketStatus(
           return;
         }
 
-        // Check if we've exceeded max attempts
-        if (attempts >= maxAttempts) {
-          reject(
-            new Error(
-              `Task polling timeout after ${maxAttempts} attempts (${(maxAttempts * interval) / 1000}s)`
-            )
-          );
-          return;
-        }
-
         // Continue polling if task is still pending/started
         if (
           status.status === "PENDING" ||
@@ -98,11 +99,30 @@ export async function pollTicketStatus(
           reject(new Error(`Unknown task status: ${status.status}`));
         }
       } catch (error: any) {
-        reject(
-          new Error(
-            `Error polling task status: ${error.message || "Unknown error"}`
-          )
-        );
+        // Handle temporary network errors (502, 503, 504) - common during cold starts
+        const statusCode = error.response?.status;
+        const isTemporaryError = statusCode === 502 || statusCode === 503 || statusCode === 504;
+
+        if (isTemporaryError) {
+          // Log and continue polling - backend is likely waking up
+          console.log(`Waiting for backend... (Attempt ${attempts}/${maxAttempts})`);
+          setTimeout(poll, interval);
+          return;
+        }
+
+        // For other errors, check if we've hit max attempts
+        if (attempts >= maxAttempts) {
+          reject(
+            new Error(
+              `Error polling task status after ${maxAttempts} attempts: ${error.message || "Unknown error"}`
+            )
+          );
+          return;
+        }
+
+        // For non-temporary errors, log and continue (might be transient)
+        console.warn(`Polling error (attempt ${attempts}/${maxAttempts}):`, error.message);
+        setTimeout(poll, interval);
       }
     };
 
