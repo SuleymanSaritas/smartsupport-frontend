@@ -104,8 +104,7 @@ export async function pollTicketStatus(
         const isTemporaryError = statusCode === 502 || statusCode === 503 || statusCode === 504;
 
         if (isTemporaryError) {
-          // Log and continue polling - backend is likely waking up
-          console.log(`Waiting for backend... (Attempt ${attempts}/${maxAttempts})`);
+          // Backend is likely waking up, retry silently
           setTimeout(poll, interval);
           return;
         }
