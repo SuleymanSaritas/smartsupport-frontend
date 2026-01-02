@@ -68,6 +68,7 @@ export interface TicketHistoryItem {
   language: string;
   response_text: string; // The AI's natural language answer
   translated_text?: string; // The English translation of the user's query (optional)
+  prediction_details?: string; // JSON string containing top 3 predictions
   created_at: string;
 }
 

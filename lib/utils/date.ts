@@ -53,3 +53,35 @@ export function truncateText(text: string, maxLength: number): string {
   return text.substring(0, maxLength) + "...";
 }
 
+/**
+ * Format a date string to absolute time in Turkey/Istanbul timezone (GMT+3)
+ * Format: "DD.MM.YYYY HH:mm" (e.g., "02.01.2026 14:30")
+ */
+export function formatAbsoluteTime(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    const formatter = new Intl.DateTimeFormat("tr-TR", {
+      timeZone: "Europe/Istanbul",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    
+    // Format: "DD.MM.YYYY HH:mm"
+    const parts = formatter.formatToParts(date);
+    const day = parts.find((p) => p.type === "day")?.value || "01";
+    const month = parts.find((p) => p.type === "month")?.value || "01";
+    const year = parts.find((p) => p.type === "year")?.value || "2026";
+    const hour = parts.find((p) => p.type === "hour")?.value || "00";
+    const minute = parts.find((p) => p.type === "minute")?.value || "00";
+    
+    return `${day}.${month}.${year} ${hour}:${minute}`;
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return dateString;
+  }
+}
+
